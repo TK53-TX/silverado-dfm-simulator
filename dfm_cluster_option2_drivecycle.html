@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Silverado DFM — Option 2 Drive Cycle</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+  :root{--bg:#05070a;--cluster:#0a0e13;--ring:#1a222c;--txt:#eef3f8;--muted:#7c8b9a;--gm-blue:#3ea6ff;--amber:#ffb31a;--green:#2fd66f;--steel:#3a4756;--red:#ef5a3c;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:radial-gradient(900px 500px at 50% -10%, #0d141c, #05070a 70%);color:var(--txt);font-family:"Inter","Segoe UI",system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:26px 16px 50px}
+  .eyebrow{font-family:"Roboto Mono",ui-monospace,monospace;letter-spacing:.3em;text-transform:uppercase;font-size:10.5px;color:var(--gm-blue);font-weight:600}
+  h1{font-family:"Roboto Mono",monospace;font-size:clamp(18px,3.4vw,26px);font-weight:700;margin:5px 0 3px}
+  .sub{color:var(--muted);font-size:12.5px;max-width:640px;text-align:center;line-height:1.5}
+  .bezel{margin-top:22px;width:100%;max-width:1000px;background:linear-gradient(180deg,#11171f,#070a0e);border:1px solid #1c252f;border-radius:26px;padding:14px;box-shadow:0 30px 70px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04)}
+  .screen{background:var(--cluster);border:1px solid #161d25;border-radius:16px;position:relative;overflow:hidden;display:grid;grid-template-columns:1fr 1.25fr 1fr;align-items:center;padding:14px 10px;box-shadow:inset 0 0 60px rgba(0,0,0,.7)}
+  .dial{position:relative;padding-bottom:22px}
+  .dial svg{display:block;width:100%;height:auto;max-width:300px;margin:0 auto}
+  .dic{border-left:1px solid #141b22;border-right:1px solid #141b22;padding:6px 14px;align-self:stretch;display:flex;flex-direction:column;justify-content:center}
+  .dic-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .dic-title{font-family:"Roboto Mono",monospace;font-size:10px;letter-spacing:.18em;color:var(--muted)}
+  .mode{font-family:"Roboto Mono",monospace;font-size:10px;letter-spacing:.1em;padding:3px 8px;border-radius:999px;border:1px solid var(--ring)}
+  .mode.dfm{color:var(--amber);border-color:#5a4410;background:#241c06}
+  .mode.ovr{color:var(--green);border-color:#1f6b3d;background:#0c2417}
+  #engine{display:block;width:100%;height:auto}
+  .dic-foot{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+  .chip{background:#0c1218;border:1px solid #161f27;border-radius:8px;padding:6px 9px}
+  .chip .k{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .chip .v{font-family:"Roboto Mono",monospace;font-size:16px;font-weight:700;margin-top:2px}
+  .dial-cap{position:absolute;left:0;right:0;bottom:-2%;text-align:center;font-family:"Roboto Mono",monospace;font-size:10px;letter-spacing:.22em;color:var(--muted)}
+  .legend{display:flex;gap:16px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+  .legend span{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+  .dot{width:10px;height:10px;border-radius:3px}
+  .deck{width:100%;max-width:1000px;margin-top:18px;background:#0b1118;border:1px solid #18212a;border-radius:16px;padding:18px}
+  .deck-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .btn{font-size:13px;font-weight:600;color:#05070a;background:var(--gm-blue);border:none;border-radius:10px;padding:11px 18px;cursor:pointer}
+  .btn.secondary{background:#16212c;color:var(--txt);border:1px solid #233140}
+  .btn:focus-visible{outline:2px solid var(--gm-blue);outline-offset:2px}
+  .phase{font-family:"Roboto Mono",monospace;font-size:13px;color:var(--amber);font-weight:600;min-width:170px}
+  .scrub-wrap{flex:1;min-width:220px}
+  .scrub-row{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-bottom:5px;font-family:"Roboto Mono",monospace}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:5px;border-radius:5px;background:#1a2129;outline:none;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--gm-blue);border:3px solid #05070a;box-shadow:0 0 0 1px var(--gm-blue)}
+  input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--gm-blue);border:3px solid #05070a;box-shadow:0 0 0 1px var(--gm-blue)}
+  input[type=range]:focus-visible{box-shadow:0 0 0 2px var(--gm-blue)}
+  .toggle-row{display:flex;align-items:center;gap:12px;margin-top:16px;background:#0c1219;border:1px solid #18212a;border-radius:10px;padding:11px 13px;width:fit-content}
+  .toggle-txt .t1{font-size:12.5px;font-weight:600}.toggle-txt .t2{font-size:10.5px;color:var(--muted);margin-top:2px}
+  .switch{position:relative;width:50px;height:27px;flex:none}.switch input{opacity:0;width:0;height:0}
+  .slider-sw{position:absolute;inset:0;background:var(--steel);border-radius:999px;transition:.18s;cursor:pointer}
+  .slider-sw:before{content:"";position:absolute;height:19px;width:19px;left:4px;top:4px;background:#dfe6ed;border-radius:50%;transition:.18s}
+  .switch input:checked + .slider-sw{background:var(--green)}.switch input:checked + .slider-sw:before{transform:translateX(23px)}
+  .switch input:focus-visible + .slider-sw{box-shadow:0 0 0 2px var(--green)}
+  .live{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}.live .chip .v{color:var(--gm-blue)}
+  .note{max-width:1000px;width:100%;font-size:11px;color:var(--muted);margin-top:12px;line-height:1.5}
+
+  /* 10-speed gear strip */
+  .gearstrip{width:100%;max-width:1000px;margin-top:14px;display:flex;align-items:stretch;gap:5px;
+    background:#0b1118;border:1px solid #18212a;border-radius:14px;padding:8px;overflow-x:auto}
+  .gearcell{flex:1;min-width:34px;text-align:center;padding:8px 4px;border-radius:9px;
+    font-family:"Roboto Mono",monospace;font-size:14px;font-weight:700;color:#566472;
+    background:#0c1219;border:1px solid #141d25;transition:background .12s,color .12s,border-color .12s,transform .12s;
+    cursor:default;user-select:none}
+  .gearcell .lbl{font-size:9px;letter-spacing:.06em;color:#3f4b57;font-weight:600;margin-top:2px}
+  .gearcell.prnd{color:#7c8b9a}
+  .gearcell.active{background:linear-gradient(180deg,#123048,#0c2236);border-color:var(--gm-blue);color:var(--gm-blue);transform:translateY(-2px);box-shadow:0 4px 14px rgba(62,166,255,.22)}
+  .gearcell.active .lbl{color:var(--gm-blue)}
+  .gearcell.shift{animation:gflash .35s ease}
+  @keyframes gflash{0%{background:#1a3c54}100%{}}
+  .gearwrap-title{width:100%;max-width:1000px;display:flex;justify-content:space-between;align-items:baseline;margin-top:18px}
+  .gearwrap-title .t{font-family:"Roboto Mono",monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+  .gearwrap-title .g{font-family:"Roboto Mono",monospace;font-size:12px;color:var(--gm-blue);font-weight:600}
+</style>
+</head>
+<body>
+  <div class="eyebrow">Silverado 1500 · 12.3" Cluster · Option 2 — Drive Cycle</div>
+  <h1>L84 DFM Simulator — Realistic Model</h1>
+  <p class="sub">A scripted trip plays idle, city, highway, grade climb, coast, and a 75 then 80 MPH high-speed pull. Cylinder count slides continuously on torque demand, so DFM stays active at any speed and only locks V8 on real load. No fixed cruise window. The Boost OBD module arms only after the truck first reaches 40 mph, then locks V8 for the rest of the session.</p>
+
+  <div class="gearwrap-title"><span class="t">10-Speed Automatic · 10L80</span><span class="g" id="gearReadout">D · Gear 1</span></div>
+  <div class="gearstrip" id="gearStrip" role="img" aria-label="Transmission gear indicator"></div>
+  <div class="bezel"><div class="screen">
+    <div class="dial"><svg id="tach" viewBox="0 0 260 260" role="img" aria-label="Tachometer"></svg><div class="dial-cap">RPM ×1000</div></div>
+    <div class="dic">
+      <div class="dic-head"><span class="dic-title">FUEL MANAGEMENT</span><span id="mode" class="mode dfm">DFM</span></div>
+      <svg id="engine" viewBox="0 0 300 150" role="img" aria-label="Engine cylinder status"></svg>
+      <div class="dic-foot">
+        <div class="chip"><div class="k">Mode</div><div class="v" id="patternChip" style="font-size:13px;color:var(--amber)">V8</div></div>
+        <div class="chip"><div class="k">Active</div><div class="v" id="activeChip" style="color:var(--green)">8/8</div></div>
+      </div>
+    </div>
+    <div class="dial"><svg id="speedo" viewBox="0 0 260 260" role="img" aria-label="Speedometer"></svg><div class="dial-cap" id="mpgCap">MPG —</div></div>
+  </div></div>
+
+  <div class="legend">
+    <span><i class="dot" style="background:var(--green)"></i>Cylinder firing</span>
+    <span><i class="dot" style="background:var(--steel)"></i>Lifter deactivated</span>
+    <span><i class="dot" style="background:var(--gm-blue)"></i>GM cluster blue</span>
+  </div>
+
+  <div class="deck">
+    <div class="deck-row">
+      <button class="btn" id="play">▶ Play</button>
+      <button class="btn secondary" id="reset">↺ Reset</button>
+      <span class="phase" id="phase">Idle</span>
+      <div class="scrub-wrap">
+        <div class="scrub-row"><span>0:00</span><span id="clock">0:00 / 1:28</span></div>
+        <input type="range" id="scrub" min="0" max="880" value="0" aria-label="Drive cycle position">
+      </div>
+    </div>
+    <div class="toggle-row">
+      <div class="toggle-txt"><div class="t1">Boost OBD Module</div><div class="t2" id="ovState">Off · DFM enabled</div></div>
+      <label class="switch"><input type="checkbox" id="override" aria-label="OBD Override Module"><span class="slider-sw"></span></label>
+    </div>
+    <div class="live">
+      <div class="chip"><div class="k">Vehicle Speed</div><div class="v" id="liveSpeed">0 MPH</div></div>
+      <div class="chip"><div class="k">Engine Load</div><div class="v" id="liveLoad">0%</div></div>
+      <div class="chip"><div class="k">Grade</div><div class="v" id="liveGrade">0%</div></div>
+    </div>
+  </div>
+  <p class="note" id="logicNote"></p>
+
+<script>
+/* ============ SHARED REALISTIC L84 DFM MODEL ============ */
+/* Cylinder count is continuous on torque demand (load). No fixed speed window.
+   DFM runs at any speed when load is light; full V8 only on real demand or near-idle. */
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const BLUE="#3ea6ff", AMBER="#ffb31a", GREEN="#2fd66f", RED="#ef5a3c", STEEL="#3a4756";
+
+function buildDial(svgSel, opts){
+  const svg=d3.select(svgSel);
+  const cx=130, cy=130, r=110;
+  const a0=-Math.PI*0.72, a1=Math.PI*0.72;
+  const scale=d3.scaleLinear().domain([opts.min,opts.max]).range([a0,a1]);
+  svg.append("circle").attr("cx",cx).attr("cy",cy).attr("r",r+8).attr("fill","none").attr("stroke","#10171e").attr("stroke-width",2);
+  svg.append("path").attr("transform",`translate(${cx},${cy})`).attr("d",d3.arc().innerRadius(r-7).outerRadius(r).startAngle(a0).endAngle(a1)()).attr("fill","#161f28");
+  const valArc=d3.arc().innerRadius(r-7).outerRadius(r).startAngle(a0);
+  const valPath=svg.append("path").attr("transform",`translate(${cx},${cy})`).attr("fill",opts.color);
+  for(let v=opts.min;v<=opts.max;v+=opts.step){
+    const a=scale(v), major=(v%(opts.majorEvery||opts.step))===0, inner=major?r-20:r-14;
+    svg.append("line").attr("x1",cx+Math.sin(a)*inner).attr("y1",cy-Math.cos(a)*inner).attr("x2",cx+Math.sin(a)*(r-9)).attr("y2",cy-Math.cos(a)*(r-9)).attr("stroke",major?"#5b6b7a":"#28323c").attr("stroke-width",major?2:1);
+    if(major) svg.append("text").attr("x",cx+Math.sin(a)*(r-34)).attr("y",cy-Math.cos(a)*(r-34)+4).attr("text-anchor","middle").attr("font-family","Roboto Mono,monospace").attr("font-size",11).attr("fill","#7c8b9a").text(v/(opts.labelDiv||1));
+  }
+  const big=svg.append("text").attr("x",cx).attr("y",cy+8).attr("text-anchor","middle").attr("font-family","Roboto Mono,monospace").attr("font-size",46).attr("font-weight",700).attr("fill","#eef3f8").text("0");
+  svg.append("text").attr("x",cx).attr("y",cy+30).attr("text-anchor","middle").attr("font-size",10).attr("letter-spacing","0.2em").attr("fill","#7c8b9a").text(opts.unit);
+  let cur=opts.min;
+  return {set(v){const t=Math.max(opts.min,Math.min(opts.max,v));cur=reduceMotion?t:cur+(t-cur)*0.3;valPath.attr("d",valArc.endAngle(scale(cur))());big.text(Math.round(cur));if(opts.dynColor){const c=opts.dynColor(cur);valPath.attr("fill",c);big.attr("fill",c);}}};
+}
+
+/* Engine block */
+function buildEngine(sel){
+  const eng=d3.select(sel);
+  const bankA=[1,3,5,7],bankB=[2,4,6,8],cyl=[];
+  const cw=58,chh=22,gy=6,sy=10,ax=14,bx=178;
+  bankA.forEach((n,i)=>cyl.push({num:n,x:ax,y:sy+i*(chh+gy)}));
+  bankB.forEach((n,i)=>cyl.push({num:n,x:bx,y:sy+i*(chh+gy)}));
+  eng.append("rect").attr("x",6).attr("y",4).attr("width",288).attr("height",142).attr("rx",10).attr("fill","#0a0f14").attr("stroke","#161f27");
+  const cg=eng.selectAll(".c").data(cyl).enter().append("g").attr("transform",d=>`translate(${d.x},${d.y})`);
+  cg.append("rect").attr("class","cb").attr("width",cw).attr("height",chh).attr("rx",6).attr("stroke","#05070a").attr("stroke-width",1.5);
+  cg.append("circle").attr("class","cr").attr("cx",chh/2).attr("cy",chh/2).attr("r",7).attr("fill","none").attr("stroke-width",2);
+  cg.append("text").attr("class","cn").attr("x",cw-12).attr("y",chh/2+4).attr("text-anchor","middle").attr("font-family","Roboto Mono,monospace").attr("font-size",11).attr("font-weight",700);
+  return cg;
+}
+
+/* Realistic continuous DFM target count from load. */
+let boostArmed=false;            // Boost device: arms only after first reaching 40 mph
+function updateArm(spd, overrideOn){
+  if(!overrideOn){ boostArmed=false; return; }   // device unplugged: reset
+  if(spd>=40) boostArmed=true;                    // once 40 mph is hit, stays armed this session
+}
+function dfmTargetCount(spd, load, overrideOn){
+  if(overrideOn && boostArmed) return 8;   // armed Boost device locks V8 at any speed
+  if(spd < 8) return 8;                     // idle / very low speed stays V8
+  // continuous map: heavier load => more cylinders. Thresholds approximate AFM/DFM behavior.
+  if(load > 58) return 8;                   // real torque demand: full power
+  if(load > 40) return 6;
+  if(load > 22) return 4;
+  return 2;                                 // very light load / coast: deepest deactivation
+}
+
+/* Map a target count to a specific firing set (DFM rotates patterns to spread wear). */
+const DFM_PATTERNS={2:[[1,8],[4,5]],4:[[1,4,6,7],[2,3,5,8]],6:[[1,2,4,5,7,8],[1,3,4,6,7,8]],8:[[1,2,3,4,5,6,7,8]]};
+function patternFor(count){const o=DFM_PATTERNS[count];return new Set(o[Math.floor(Math.random()*o.length)]);}
+
+function tachRPM(spd,load){return Math.min(7000,650+spd*22+load*9);}
+function mpgValue(spd,load,activeCount){
+  let base=30-Math.abs(spd-55)*0.16-load*0.20+(8-activeCount)*1.7+(Math.random()*0.8-0.4);
+  if(spd<5)base=Math.min(base,load>40?6:9);
+  return Math.max(0,Math.min(42,base));
+}
+
+function reasonText(spd,load,count,overrideOn){
+  if(overrideOn) return "Override module forces all eight cylinders firing. DFM suppressed at every load and speed.";
+  if(spd<8) return "Idle or very low speed. ECM holds all cylinders to keep the engine smooth.";
+  if(count===8) return "Torque demand is high (load "+Math.round(load)+"%). ECM fires all eight cylinders.";
+  return "Light load (" + Math.round(load) + "%) at " + Math.round(spd) + " MPH. DFM runs " + count + " cylinders for economy.";
+}
+
+const tach=buildDial("#tach",{min:0,max:7000,step:1000,majorEvery:1000,labelDiv:1000,unit:"RPM",color:BLUE,dynColor:v=>v>6000?RED:v>4500?AMBER:BLUE});
+const speedo=buildDial("#speedo",{min:0,max:120,step:10,majorEvery:20,unit:"MPH",color:BLUE,dynColor:()=>BLUE});
+const cg=buildEngine("#engine");
+/* ---- 10-speed gear strip ---- */
+const GEARS=["P","R","N","D","1","2","3","4","5","6","7","8","9","10"];
+const gearStripEl=document.getElementById("gearStrip");
+const gearReadoutEl=document.getElementById("gearReadout");
+let lastGearIdx=-1;
+(function buildStrip(){
+  GEARS.forEach((g,i)=>{
+    const d=document.createElement("div");
+    d.className="gearcell"+((i<4)?" prnd":"");
+    const isNum=i>=4;
+    d.innerHTML='<div>'+(isNum?g:g)+'</div><div class="lbl">'+(isNum?"GEAR":({P:"PARK",R:"REV",N:"NEUT",D:"DRIVE"}[g]))+'</div>';
+    d.id="gc-"+i;
+    gearStripEl.appendChild(d);
+  });
+})();
+/* derive drive gear (1-10) from speed and load: higher load => hold lower gear (downshift) */
+function deriveGear(spd,load,moving){
+  if(spd<1) return 0;            // P/idle shown as Park when stopped
+  // base gear by speed (upshift schedule)
+  const ups=[0,8,16,24,33,42,52,62,72,82]; // mph at which gear g+1 engages (10L80-ish, tall top gears)
+  let g=1;
+  for(let i=0;i<ups.length;i++){ if(spd>=ups[i]) g=i+1; }
+  // load-based downshift: heavy demand pulls 1-3 gears lower
+  if(load>75) g-=3; else if(load>58) g-=2; else if(load>44) g-=1;
+  return Math.max(1,Math.min(10,g));
+}
+function renderGear(spd,load,moving){
+  const dg=deriveGear(spd,load,moving);
+  // map to strip index: stopped => P(0); moving => D group, numeric gear at index 4+(dg-1)
+  const idx = (spd<1) ? 0 : (4 + (dg-1));
+  if(idx!==lastGearIdx){
+    document.querySelectorAll(".gearcell").forEach(c=>c.classList.remove("active","shift"));
+    // keep D lit as the selected range while a numeric gear is active
+    if(spd>=1){ const dcell=document.getElementById("gc-3"); if(dcell) dcell.classList.add("active"); }
+    const cell=document.getElementById("gc-"+idx);
+    if(cell){ cell.classList.add("active"); cell.classList.add("shift"); }
+    lastGearIdx=idx;
+  }
+  gearReadoutEl.textContent = (spd<1) ? "P · Park" : ("D · Gear "+dg);
+}
+
+
+const els={override:document.getElementById("override"),ovState:document.getElementById("ovState"),mode:document.getElementById("mode"),patternChip:document.getElementById("patternChip"),activeChip:document.getElementById("activeChip"),mpgCap:document.getElementById("mpgCap"),logicNote:document.getElementById("logicNote"),play:document.getElementById("play"),reset:document.getElementById("reset"),phase:document.getElementById("phase"),scrub:document.getElementById("scrub"),clock:document.getElementById("clock"),liveSpeed:document.getElementById("liveSpeed"),liveLoad:document.getElementById("liveLoad"),liveGrade:document.getElementById("liveGrade")};
+
+const CYCLE=[
+  {t:0,spd:0,grade:0,label:"Idle"},{t:5,spd:0,grade:0,label:"Idle"},
+  {t:8,spd:35,grade:0,label:"City accelerate"},{t:15,spd:32,grade:0,label:"City cruise"},
+  {t:20,spd:30,grade:0,label:"City cruise"},{t:26,spd:65,grade:0,label:"Highway merge"},
+  {t:34,spd:62,grade:0,label:"Highway cruise"},{t:40,spd:60,grade:9,label:"Grade climb"},
+  {t:47,spd:57,grade:9,label:"Grade climb"},{t:50,spd:60,grade:-5,label:"Coast downhill"},
+  {t:56,spd:55,grade:-3,label:"Decel / coast"},{t:62,spd:75,grade:0,label:"Passing pull → 75"},
+  {t:70,spd:75,grade:0,label:"75 MPH cruise"},{t:74,spd:80,grade:0,label:"Top-speed pull → 80"},
+  {t:82,spd:80,grade:0,label:"80 MPH cruise"},{t:88,spd:0,grade:0,label:"Brake to stop"}
+];
+const DUR=88,FPS=10,FRAMES=DUR*FPS;
+function interp(arr,key,sec){for(let i=0;i<arr.length-1;i++){if(sec>=arr[i].t&&sec<=arr[i+1].t){const a=arr[i],b=arr[i+1],f=(sec-a.t)/(b.t-a.t||1);return a[key]+(b[key]-a[key])*f;}}return arr[arr.length-1][key];}
+function phaseAt(sec){let lab=CYCLE[0].label;for(const k of CYCLE){if(sec>=k.t)lab=k.label;}return lab;}
+let prevSpd=0;
+function deriveLoad(spd,grade,accel){
+  // steady-state load: idle offset + aero drag rising with square of speed (dominant at highway speed)
+  let load = 6 + (spd*spd)*0.0072;        // ~46% at 80 mph steady, ~33% at 65, light at city speeds
+  load += Math.max(0,accel)*5.5;          // acceleration adds transient demand (only positive accel loads engine)
+  load += grade*3.2;                      // grade demand
+  if(accel < -0.3) load *= 0.45;          // coasting / braking unloads the engine sharply
+  if(spd<2) load=18;                       // idle
+  return Math.max(0,Math.min(100,load));
+}
+
+let activeSet=new Set([1,2,3,4,5,6,7,8]), curCount=8, transTimer=null;
+function setCylinders(count){
+  if(count===curCount && activeSet.size===count) return;
+  curCount=count; activeSet=patternFor(count); renderCyl();
+}
+function renderCyl(){
+  cg.select(".cb").attr("fill",d=>activeSet.has(d.num)?"#0f2c1b":"#141b22").attr("stroke",d=>activeSet.has(d.num)?GREEN:"#2a343f");
+  cg.select(".cr").attr("stroke",d=>activeSet.has(d.num)?GREEN:STEEL);
+  cg.select(".cn").attr("fill",d=>activeSet.has(d.num)?"#6cf0a0":"#566472").text(d=>d.num);
+  els.activeChip.textContent=activeSet.size+"/8";
+  els.activeChip.style.color=activeSet.size===8?GREEN:AMBER;
+}
+
+let frame=0,playing=false,lastTs=0,accMs=0;
+function fmt(sec){const m=Math.floor(sec/60),s=Math.floor(sec%60);return m+":"+s.toString().padStart(2,"0");}
+
+function renderFrame(){
+  const sec=frame/FPS, spd=interp(CYCLE,"spd",sec), grade=interp(CYCLE,"grade",sec);
+  const accel=spd-prevSpd; prevSpd=spd;
+  const load=deriveLoad(spd,grade,accel), ov=els.override.checked;
+  // Boost arming for the drive cycle: armed if the truck has reached 40 mph
+  // at any point from the start of the cycle up to the current frame.
+  let armed=false;
+  if(ov){
+    for(let fr=0; fr<=frame; fr++){
+      if(interp(CYCLE,"spd",fr/FPS) >= 40){ armed=true; break; }
+    }
+  }
+  boostArmed=armed;
+  const count=dfmTargetCount(spd,load,ov);
+  setCylinders(count);
+
+  speedo.set(spd); tach.set(tachRPM(spd,load));
+  els.mode.textContent = !ov?"DFM":(armed?"OVERRIDE":"ARMING"); els.mode.className="mode "+(!ov?"dfm":(armed?"ovr":"dfm"));
+  els.ovState.textContent = !ov?"Off · DFM enabled":(armed?"Armed · V8 locked (hit 40 mph)":"On · arms at 40 mph");
+  els.patternChip.textContent = count===8?((ov&&armed)?"V8 LOCKED":"V8"):count+"-CYL";
+  els.patternChip.style.color = count===8?((ov&&armed)?GREEN:AMBER):AMBER;
+
+  const m=mpgValue(spd,load,activeSet.size);
+  els.mpgCap.textContent="MPG "+m.toFixed(1);
+  els.mpgCap.style.color=(ov&&armed)?"#7ef0a0":"#ffb31a";
+  els.liveSpeed.textContent=Math.round(spd)+" MPH";
+  els.liveLoad.textContent=Math.round(load)+"%";
+  els.liveGrade.textContent=(grade>0?"+":"")+grade.toFixed(0)+"%";
+  els.phase.textContent=phaseAt(sec);
+  els.scrub.value=frame; els.clock.textContent=fmt(sec)+" / "+fmt(DUR);
+  els.logicNote.textContent = (ov&&!armed) ? ("Boost device plugged in but not yet armed. DFM runs normally until the truck first reaches 40 mph.") : reasonText(spd,load,activeSet.size,ov&&armed);
+  renderGear(spd,load,spd>=1);
+}
+function tick(ts){
+  if(!playing){lastTs=ts;requestAnimationFrame(tick);return;}
+  if(!lastTs)lastTs=ts; accMs+=ts-lastTs; lastTs=ts;
+  const step=1000/FPS;
+  while(accMs>=step){frame++;accMs-=step;if(frame>=FRAMES){frame=FRAMES;playing=false;els.play.textContent="▶ Replay";break;}}
+  renderFrame(); requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+els.play.addEventListener("click",()=>{if(frame>=FRAMES){frame=0;prevSpd=0;}playing=!playing;els.play.textContent=playing?"❚❚ Pause":(frame>=FRAMES?"▶ Replay":"▶ Play");lastTs=0;});
+els.reset.addEventListener("click",()=>{playing=false;frame=0;prevSpd=0;els.play.textContent="▶ Play";renderFrame();});
+els.scrub.addEventListener("input",()=>{playing=false;els.play.textContent="▶ Play";frame=+els.scrub.value;prevSpd=interp(CYCLE,"spd",Math.max(0,(frame-1)/FPS));renderFrame();});
+els.override.addEventListener("change",renderFrame);
+renderFrame();
+</script>
+</body>
+</html>
